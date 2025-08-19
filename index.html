@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ultra Shooter - Part 2</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: url('https://static.vecteezy.com/system/resources/thumbnails/049/462/670/small/ultra-realistic-military-game-scene-with-soldier-in-full-gear-and-intense-combat-atmosphere-photo.jpeg') no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+    }
+
+    #logo {
+      position: absolute;
+      top: 20px;
+      width: 100%;
+      text-align: center;
+      font-size: 50px;
+      color: lime;
+      font-weight: bold;
+      text-shadow: 3px 3px 5px #000, 0 0 10px lime;
+      animation: glow 1.5s infinite alternate;
+    }
+
+    @keyframes glow {
+      0% {
+        text-shadow: 2px 2px 5px #000, 0 0 5px lime;
+      }
+
+      100% {
+        text-shadow: 2px 2px 10px #000, 0 0 20px lime;
+      }
+    }
+
+    #levelSelect {
+      position: absolute;
+      top: 120px;
+      width: 100%;
+      text-align: center;
+      animation: fadeIn 1.5s;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    button {
+      margin: 10px;
+      padding: 15px 30px;
+      font-size: 22px;
+      cursor: pointer;
+      border: 2px solid lime;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.6);
+      color: lime;
+      transition: all 0.3s;
+      box-shadow: 0 0 10px lime;
+    }
+
+    button:hover {
+      background: lime;
+      color: black;
+      box-shadow: 0 0 20px lime;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: rgba(0, 0, 0, 0.2);
+      border: 2px solid lime;
+      box-shadow: 0 0 20px lime;
+    }
+
+    #endScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: white;
+      text-align: center;
+    }
+
+    #endScreen h1 {
+      font-size: 60px;
+      margin-bottom: 20px;
+    }
+
+    #endScreen p {
+      font-size: 28px;
+      margin-bottom: 30px;
+    }
+
+    #mobileControls {
+      position: fixed;
+      bottom: 30px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      z-index: 10;
+      display: none;
+    }
+
+    #mobileControls button {
+      margin: 0 20px;
+      padding: 18px 32px;
+      font-size: 32px;
+      border-radius: 50%;
+      border: 2px solid lime;
+      background: rgba(0,0,0,0.7);
+      color: lime;
+      box-shadow: 0 0 10px lime;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    #mobileControls button:active {
+      background: lime;
+      color: black;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="logo">ULTRA SHOOTER</div>
+  <div id="levelSelect">
+    <p style="font-size:24px;">Choose your level:</p>
+    <button onclick="startGame(1)">Easy</button>
+    <button onclick="startGame(2)">Medium</button>
+    <button onclick="startGame(3)">Hard</button>
+  </div>
+  <canvas id="gameCanvas" width="800" height="600" style="display:none"></canvas>
+  <div id="endScreen">
+    <h1 id="endMessage">GAME OVER</h1>
+    <p id="finalScore">Final Score: 0</p>
+    <button onclick="restartGame()">Restart</button>
+  </div>
+  <!-- Мобильные кнопки управления -->
+  <div id="mobileControls">
+    <button id="btnLeft">◀️</button>
+    <button id="btnShoot">🔫</button>
+    <button id="btnRight">▶️</button>
+  </div>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const endScreen = document.getElementById("endScreen");
+    const finalScoreText = document.getElementById("finalScore");
+
+    const tankImg = new Image();
+    tankImg.src = 'https://pngimg.com/uploads/tank/tank_PNG1619.png';
+    tankImg.crossOrigin = "anonymous";
+
+    const bulletImg = new Image();
+    bulletImg.src = 'https://pngimg.com/uploads/bullet/bullet_PNG12556.png';
+    bulletImg.crossOrigin = "anonymous";
+
+    let player, bullets, enemies, score, level, goalScore;
+    let enemyInterval, stars = [];
+    let gameOver = false;
+
+    for (let i = 0; i < 100; i++) {
+      stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: Math.random() * 2 + 1, speed: Math.random() * 0.5 + 0.2 });
+    }
+
+    function drawHeart(ctx, x, y, size, color) {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.bezierCurveTo(x, y - size / 2, x - size, y - size / 2, x - size, y + size / 4);
+      ctx.bezierCurveTo(x - size, y + size, x, y + size, x, y);
+      ctx.bezierCurveTo(x, y + size, x + size, y + size, x + size, y + size / 4);
+      ctx.bezierCurveTo(x + size, y - size / 2, x, y - size / 2, x, y);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function createEnemy() {
+      const x = Math.random() * (canvas.width - 50);
+      enemies.push({ x, y: -50, width: 50, height: 50, speedY: 2 + level });
+    }
+
+    function update() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      stars.forEach(s => {
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+        s.y += s.speed;
+        if (s.y > canvas.height) s.y = 0;
+      });
+
+      if (!gameOver) {
+        if (tankImg.complete && tankImg.naturalWidth > 0) {
+          ctx.drawImage(tankImg, player.x, player.y, player.width, player.height);
+        } else {
+          ctx.fillStyle = 'lime';
+          ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+
+        enemies.forEach((e, i) => {
+          e.y += e.speedY;
+          ctx.fillStyle = 'orange';
+          ctx.shadowColor = 'orange';
+          ctx.shadowBlur = 10;
+          ctx.fillRect(e.x, e.y, e.width, e.height);
+          ctx.shadowBlur = 0;
+
+          if (e.y > canvas.height) enemies.splice(i, 1);
+
+          if (player.x < e.x + e.width && player.x + player.width > e.x &&
+            player.y < e.y + e.height && player.y + player.height > e.y) {
+            player.health -= 1;
+            enemies.splice(i, 1);
+            if (player.health <= 0) {
+              endGame();
+            }
+          }
+        });
+
+        bullets.forEach((b, i) => {
+          b.y -= 10;
+          if (bulletImg.complete && bulletImg.naturalWidth > 0) {
+            ctx.drawImage(bulletImg, b.x, b.y, b.width, b.height);
+          } else {
+            ctx.fillStyle = 'yellow';
+            ctx.fillRect(b.x, b.y, b.width, b.height);
+          }
+
+          if (b.y < 0) bullets.splice(i, 1);
+
+          enemies.forEach((e, ei) => {
+            if (b.x < e.x + e.width && b.x + b.width > e.x &&
+              b.y < e.y + e.height && b.y + b.height > e.y) {
+              enemies.splice(ei, 1);
+              bullets.splice(i, 1);
+              score += 1;
+            }
+          });
+        });
+
+        for (let i = 0; i < player.health; i++) {
+          drawHeart(ctx, 700 + i * 30, 20, 10, 'red');
+        }
+
+        ctx.fillStyle = 'white';
+        ctx.font = '22px Arial';
+        ctx.fillText('Score: ' + score, 10, 30);
+        ctx.fillText('Level: ' + level, 10, 60);
+
+        if (player.moveLeft && player.x > 0) player.x -= player.speed;
+        if (player.moveRight && player.x < canvas.width - player.width) player.x += player.speed;
+
+        requestAnimationFrame(update);
+      }
+    }
+
+    function endGame() {
+      gameOver = true;
+      clearInterval(enemyInterval);
+      setTimeout(() => {
+        finalScoreText.textContent = "Final Score: " + score;
+        endScreen.style.display = "flex";
+      }, 800);
+    }
+
+    function restartGame() {
+      endScreen.style.display = "none";
+      document.getElementById('levelSelect').style.display = 'block';
+      canvas.style.display = 'none';
+      document.getElementById('mobileControls').style.display = 'none';
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') player.moveLeft = true;
+      if (e.key === 'ArrowRight') player.moveRight = true;
+      if (e.key === ' ' && !gameOver) bullets.push({ x: player.x + 20, y: player.y, width: 10, height: 20 });
+    });
+
+    document.addEventListener('keyup', e => {
+      if (e.key === 'ArrowLeft') player.moveLeft = false;
+      if (e.key === 'ArrowRight') player.moveRight = false;
+    });
+
+    // --- Мобильные кнопки управления ---
+    const btnLeft = document.getElementById('btnLeft');
+    const btnRight = document.getElementById('btnRight');
+    const btnShoot = document.getElementById('btnShoot');
+
+    // Показывать кнопки на мобильных устройствах
+    function showMobileControls() {
+      if (window.innerWidth < 900 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        document.getElementById('mobileControls').style.display = 'block';
+      }
+    }
+
+    // Сенсорные события
+    btnLeft.addEventListener('touchstart', () => player.moveLeft = true);
+    btnLeft.addEventListener('touchend', () => player.moveLeft = false);
+    btnRight.addEventListener('touchstart', () => player.moveRight = true);
+    btnRight.addEventListener('touchend', () => player.moveRight = false);
+    btnShoot.addEventListener('touchstart', () => {
+      if (!gameOver) bullets.push({ x: player.x + 20, y: player.y, width: 10, height: 20 });
+    });
+
+    // Мышь (для теста на ПК)
+    btnLeft.addEventListener('mousedown', () => player.moveLeft = true);
+    btnLeft.addEventListener('mouseup', () => player.moveLeft = false);
+    btnRight.addEventListener('mousedown', () => player.moveRight = true);
+    btnRight.addEventListener('mouseup', () => player.moveRight = false);
+    btnShoot.addEventListener('mousedown', () => {
+      if (!gameOver) bullets.push({ x: player.x + 20, y: player.y, width: 10, height: 20 });
+    });
+
+    function startGame(chosenLevel) {
+      document.getElementById('levelSelect').style.display = 'none';
+      canvas.style.display = 'block';
+      showMobileControls();
+      level = chosenLevel;
+      if (level === 1) goalScore = 25;
+      else if (level === 2) goalScore = 40;
+      else goalScore = 65;
+      player = { x: 375, y: 550, width: 50, height: 50, speed: 6, moveLeft: false, moveRight: false, health: 3 };
+      bullets = [];
+      enemies = [];
+      score = 0;
+      gameOver = false;
+      enemyInterval = setInterval(createEnemy, 1500 - level * 300);
+      update();
+    }
+  </script>
+</body>
+
+</html>
